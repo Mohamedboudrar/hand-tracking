@@ -5,6 +5,7 @@
 ### Windows
 
 1. Clone & Create virtual environment
+   
     git clone https://github.com/Mohamedboudrar/hand-tracking.git
     cd hand-tracking
     python -m venv venv
