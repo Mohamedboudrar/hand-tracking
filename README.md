@@ -18,7 +18,7 @@
 
 4. Run application
 
-    python main.py
+    python test.py
 
 
 ### macOS / Linux
