@@ -9,6 +9,7 @@
     cd hand-tracking
     python -m venv venv
 
+
 3. Activate virtual environment
 
     venv\Scripts\activate
