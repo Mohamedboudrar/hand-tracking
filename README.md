@@ -4,19 +4,20 @@
 
 ### Windows
 
-1. Create virtual environment
-
+1. Clone & Create virtual environment
+    git clone https://github.com/Mohamedboudrar/hand-tracking.git
+    cd hand-tracking
     python -m venv venv
 
-2. Activate virtual environment
+3. Activate virtual environment
 
     venv\Scripts\activate
 
-3. Install dependencies
+4. Install dependencies
 
     pip install -r requirements.txt
 
-4. Run application
+5. Run application
 
     python test.py
 
