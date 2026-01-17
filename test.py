@@ -64,7 +64,7 @@ def main():
         min_tracking_confidence=0.5
     )
 
-    # ===== ORIGINAL VOLUME VARIABLES (UNCHANGED) =====
+    # ===== ORIGINAL VOLUME VARIABLES =====
     prev_length = 0
     alpha = 0.25
     last_sent_volume = -1
@@ -78,7 +78,7 @@ def main():
     BAR_WIDTH = 30
 
 
-    # ===== MOUSE STATE (ADDED) =====
+    # ===== MOUSE STATE =====
     screen_w, screen_h = pyautogui.size()
     last_click_time = 0
     CLICK_DELAY = 0.8
@@ -103,14 +103,14 @@ def main():
                 for i, p in enumerate(hand_landmarks.landmark):
                     lm.append([i, int(p.x * w), int(p.y * h)])
 
-                # ===== FINGER STATES (UNCHANGED) =====
+                # ===== FINGER STATES =====
                 thumb_up = lm[4][1] < lm[3][1]
                 index_up = lm[8][2] < lm[6][2]
                 middle_down = lm[12][2] > lm[10][2]
                 ring_down = lm[16][2] > lm[14][2]
                 pinky_down = lm[20][2] > lm[18][2]
 
-                # ===== VOLUME GESTURE (UNCHANGED) =====
+                # ===== VOLUME GESTURE =====
                 volume_gesture = (
                     thumb_up and index_up and
                     middle_down and ring_down and pinky_down
@@ -139,7 +139,7 @@ def main():
 
                         last_sent_volume = vol
 
-                    # ===== VOLUME VISUALS (UNCHANGED) =====
+                    # ===== VOLUME VISUALS =====
                     cv2.line(frame, (thumb[1], thumb[2]),
                              (index[1], index[2]), (255, 0, 255), 3)
                     # ===== VOLUME BAR DRAW =====
@@ -176,7 +176,7 @@ def main():
 
 
                 # ==================================================
-                # 🖱️ CURSOR MOVE — INDEX ONLY (THUMB DOWN)
+                #   CURSOR MOVE — INDEX ONLY (THUMB DOWN)
                 # ==================================================
                 if (
                     index_up and
@@ -189,7 +189,7 @@ def main():
                     pyautogui.moveTo(x, y, duration=0.04)
 
                 # ==================================================
-                # 🖱️ LEFT CLICK — INDEX + MIDDLE (NO THUMB)
+                #   LEFT CLICK — INDEX + MIDDLE (NO THUMB)
                 # ==================================================
                 if (
                     index_up and
