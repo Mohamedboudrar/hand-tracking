@@ -1,6 +1,13 @@
 opencv-python
-mediapipe
-numpy
 pyautogui
+cvzone
+mediapipe
+# --- Critical Fixes for MediaPipe/Mac Compatibility ---
+# Forces NumPy 1.x (MediaPipe is broken on NumPy 2.0+)
+numpy<2.0.0
+# Forces specific Protobuf version to prevent "ImportError: builder"
+protobuf==3.20.3
+
+# --- Windows Specific ---
 pycaw; platform_system == "Windows"
 comtypes; platform_system == "Windows"

@@ -1,109 +1,133 @@
 import cv2
-import mediapipe as mp
+import numpy as np
+import platform
+import subprocess
+import time
+import pyautogui
+from cvzone.HandTrackingModule import HandDetector
 
+# ================= OS SETUP =================
+OS = platform.system()
+
+# ================= HAND SMOOTHING =================
+smooth_vol = 0.0
+SMOOTHING_ALPHA = 0.15   # 0.1 = smoother | 0.3 = more responsive
+
+# ================= WINDOWS VOLUME STATE =================
+current_volume = 50      # tracked software volume (0–100)
+VOLUME_STEP = 2          # % per key press (Windows only)
+
+# ================= VOLUME CONTROL =================
+def set_volume(vol):
+    global current_volume
+
+    vol = int(np.clip(vol, 0, 100))
+
+    # -------- macOS (EXACT) --------
+    if OS == "Darwin":
+        subprocess.call(
+            ["osascript", "-e", f"set volume output volume {vol}"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
+        )
+
+    # -------- Windows (MEDIA KEYS) --------
+    elif OS == "Windows":
+        delta = vol - current_volume
+        if abs(delta) < VOLUME_STEP:
+            return
+
+        steps = abs(delta) // VOLUME_STEP
+        key = "volumeup" if delta > 0 else "volumedown"
+
+        for _ in range(steps):
+            pyautogui.press(key)
+            current_volume += VOLUME_STEP if delta > 0 else -VOLUME_STEP
+
+# ================= MAIN LOGIC =================
 def main():
+    global smooth_vol
+
     cap = cv2.VideoCapture(0)
+    cap.set(3, 1280)
+    cap.set(4, 720)
 
-    # 1. Initialize MediaPipe Hands
-    mp_hands = mp.solutions.hands
-    mp_draw = mp.solutions.drawing_utils
-    
-    # max_num_hands=1 implies we only track one hand for simplicity
-    hands = mp_hands.Hands(
-        static_image_mode=False,
-        max_num_hands=1,
-        min_detection_confidence=0.7,
-        min_tracking_confidence=0.5
-    )
+    detector = HandDetector(detectionCon=0.7, maxHands=1)
 
-    # 2. Define Finger Landmarks (Indices from MediaPipe documentation)
-    # [Thumb, Index, Middle, Ring, Pinky]
-    # We look at the TIP (4, 8, 12, 16, 20)
-    tip_ids = [4, 8, 12, 16, 20]
+    last_click_time = 0
+    CLICK_DELAY = 0.5
+
+    screen_w, screen_h = pyautogui.size()
+
+    # Mouse smoothing
+    smoothening = 5
+    plocX, plocY = 0, 0
 
     while True:
-        ret, frame = cap.read()
-        if not ret:
+        success, img = cap.read()
+        if not success:
             break
-            
-        # Flip frame for mirror view
-        frame = cv2.flip(frame, 1)
-        
-        # MediaPipe works with RGB, OpenCV uses BGR
-        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        
-        # Process the image to find hands
-        results = hands.process(rgb_frame)
 
-        # List to store which fingers are open (1) or closed (0)
-        fingers = []
+        img = cv2.flip(img, 1)
+        hands, img = detector.findHands(img, draw=True)
 
-        # If a hand is found
-        if results.multi_hand_landmarks:
-            for hand_landmarks in results.multi_hand_landmarks:
-                
-                # DRAW the skeleton on the hand
-                mp_draw.draw_landmarks(frame, hand_landmarks, mp_hands.HAND_CONNECTIONS)
+        if hands:
+            hand = hands[0]
+            lmList = hand["lmList"]
+            fingers = detector.fingersUp(hand)
 
-                # --- MATCHING LOGIC (Geometry) ---
-                # We need to get the coordinate of every landmark
-                lm_list = []
-                h, w, c = frame.shape
-                
-                for id, lm in enumerate(hand_landmarks.landmark):
-                    # Convert normalized (0-1) coords to pixels (x, y)
-                    cx, cy = int(lm.x * w), int(lm.y * h)
-                    lm_list.append([id, cx, cy])
+            x1, y1 = lmList[4][:2]   # Thumb tip
+            x2, y2 = lmList[8][:2]   # Index tip
 
-                if len(lm_list) != 0:
-                    # 1. THUMB LOGIC
-                    # The thumb moves horizontally. We check if the tip (4) is 
-                    # to the "right" or "left" of the knuckle (3) depending on hand side.
-                    # Simple heuristic: Check if tip x is further out than knuckle x.
-                    # (Note: This simple logic assumes right hand facing camera)
-                    if lm_list[tip_ids[0]][1] < lm_list[tip_ids[0] - 1][1]: 
-                        fingers.append(1) # Open
-                    else:
-                        fingers.append(0) # Closed
+            # ================= VOLUME MODE =================
+            if fingers == [1, 1, 0, 0, 0]:
+                length, _, img = detector.findDistance((x1, y1), (x2, y2), img)
 
-                    # 2. FOUR LONG FINGERS LOGIC
-                    # For Index(8), Middle(12), Ring(16), Pinky(20):
-                    # Check if TIP y < PIP y (y coordinates start 0 at top)
-                    for id in range(1, 5):
-                        # Tip (ids 8,12,16,20) vs PIP joint (ids 6,10,14,18)
-                        # Remember: in image, "Higher" means SMALLER Y value.
-                        if lm_list[tip_ids[id]][2] < lm_list[tip_ids[id] - 2][2]:
-                            fingers.append(1)
-                        else:
-                            fingers.append(0)
+                # Raw volume from hand distance
+                raw_vol = np.interp(length, [30, 250], [0, 100])
+                raw_vol = np.clip(raw_vol, 0, 100)
 
-                    # --- GESTURE RECOGNITION ---
-                    total_fingers = fingers.count(1)
-                    
-                    gesture = ""
-                    if total_fingers == 0:
-                        gesture = "Fist"
-                    elif total_fingers == 5:
-                        gesture = "High Five"
-                    elif total_fingers == 2 and fingers[1] == 1 and fingers[2] == 1:
-                        gesture = "Peace/Victory"
-                    elif total_fingers == 1 and fingers[1] == 1:
-                        gesture = "Pointing"
-                    else:
-                        gesture = f"{total_fingers} Fingers"
+                # --- Exponential Moving Average (SMOOTHING) ---
+                smooth_vol = smooth_vol + SMOOTHING_ALPHA * (raw_vol - smooth_vol)
+                vol = int(round(smooth_vol))
 
-                    # Display Result
-                    cv2.rectangle(frame, (20, 20), (300, 100), (0, 255, 0), -1)
-                    cv2.putText(frame, gesture, (30, 80), cv2.FONT_HERSHEY_SIMPLEX, 
-                                2, (255, 255, 255), 3)
+                # Volume bar (matches hand exactly)
+                bar_height = np.interp(vol, [0, 100], [550, 150])
+                cv2.rectangle(img, (1150, 150), (1180, 550), (60, 60, 60), 2)
+                cv2.rectangle(img, (1150, int(bar_height)), (1180, 550),
+                              (0, 255, 0), cv2.FILLED)
+                cv2.putText(img, f'{vol}%', (1130, 590),
+                            cv2.FONT_HERSHEY_PLAIN, 2, (0, 255, 0), 2)
 
-        cv2.imshow("MediaPipe Hand Tracking", frame)
+                set_volume(vol)
 
+            # ================= MOUSE MODE =================
+            elif fingers == [0, 1, 0, 0, 0]:
+                frameR = 150
+
+                x3 = np.interp(x2, (frameR, 1280 - frameR), (0, screen_w))
+                y3 = np.interp(y2, (frameR, 720 - frameR), (0, screen_h))
+
+                clocX = plocX + (x3 - plocX) / smoothening
+                clocY = plocY + (y3 - plocY) / smoothening
+
+                pyautogui.moveTo(clocX, clocY)
+                plocX, plocY = clocX, clocY
+
+            # ================= CLICK MODE =================
+            if fingers == [0, 1, 0, 0, 1]:
+                if time.time() - last_click_time > CLICK_DELAY:
+                    pyautogui.click()
+                    last_click_time = time.time()
+                    cv2.circle(img, (x2, y2), 15, (0, 255, 0), cv2.FILLED)
+
+        cv2.imshow("Hand Control", img)
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
 
     cap.release()
     cv2.destroyAllWindows()
 
+# ================= RUN =================
 if __name__ == "__main__":
     main()

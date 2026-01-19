@@ -1,29 +1,30 @@
-# Hand Tracking with MediaPipe & OpenCV
+# Hand Tracking with OpenCV
 
 ## Installation
 
+Python 3.10.x
+
 ### Windows
 
-1. Clone & Create virtual environment
-   
+1. Create virtual environment
+
     git clone https://github.com/Mohamedboudrar/hand-tracking.git
-   
+
     cd hand-tracking
-   
-    python -m venv venv
 
+    python3.10 -m venv venv
 
-3. Activate virtual environment
+2. Activate virtual environment
 
     venv\Scripts\activate
 
-4. Install dependencies
+3. Install dependencies
 
     pip install -r requirements.txt
 
-5. Run application
+4. Run application
 
-    python test.py
+    python main.py
 
 
 ### macOS / Linux
@@ -42,4 +43,4 @@
 
 4. Run application
 
-    python test.py
+    python main.py
