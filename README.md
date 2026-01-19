@@ -31,7 +31,7 @@ Python 3.10.x
 
 1. Create virtual environment
 
-    python3 -m venv venv
+    python3.10 -m venv venv
 
 2. Activate virtual environment
 
